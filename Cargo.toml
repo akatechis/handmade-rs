@@ -1,0 +1,10 @@
+[package]
+name = "handmade"
+version = "0.1.0"
+authors = ["Alexandros <akatechis@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+gfx = "*"
+glutin = "*"
+gfx_window_glutin = "*"
