@@ -80,7 +80,18 @@ fn create_instance() -> Arc<Instance> {
     engine_version: Some(Version { major: 0, minor: 1, patch: 0 }),
   };
 
-  Instance::new(Some(&app_info), &required_extensions, None)
+  let mut layers = vec![];
+  #[cfg(not(release))]
+  {
+    for layer in vulkano::instance::layers_list().unwrap() {
+      if layer.name() == "VK_LAYER_LUNARG_standard_validation" {
+        println!("Enabling layer: \"{}\"", "VK_LAYER_LUNARG_standard_validation");
+        layers.push("VK_LAYER_LUNARG_standard_validation");
+      }
+    }
+  }
+
+  Instance::new(Some(&app_info), &required_extensions, layers)
     .expect("failed to create Vulkan instance")
 }
 
