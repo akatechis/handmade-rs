@@ -28,7 +28,7 @@ fn main() {
 
   let inst = create_instance();
   for device in PhysicalDevice::enumerate(&inst) {
-    println!("Device found: {:?}", device);
+    print_device_info(&device);
   }
 
   let mut done = false;
@@ -82,4 +82,14 @@ fn create_instance() -> Arc<Instance> {
 
   Instance::new(Some(&app_info), &required_extensions, None)
     .expect("failed to create Vulkan instance")
+}
+
+fn print_device_info (d: &PhysicalDevice) {
+  println!("Device name: {:?}", d.name());
+  println!("Device type: {:?}", d.ty());
+  println!("API version: {:?}", d.api_version());
+  println!("Driver version: {:?}", d.driver_version());
+
+  let lim = d.limits();
+  println!("Device memory: {}", lim.max_memory_allocation_count());
 }
