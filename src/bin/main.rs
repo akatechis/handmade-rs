@@ -3,9 +3,9 @@ extern crate vulkano_win;
 
 use std::sync::Arc;
 use vulkano::instance::Instance;
-use vulkano::instance::InstanceExtensions;
 use vulkano::instance::ApplicationInfo;
 use vulkano::instance::Version;
+use vulkano::instance::PhysicalDevice;
 use winit::WindowEvent;
 use winit::WindowBuilder;
 use winit::Event;
@@ -13,19 +13,23 @@ use winit::EventsLoop;
 use winit::KeyboardInput;
 use winit::VirtualKeyCode;
 use winit::ControlFlow;
-use winit::dpi::LogicalSize;
-
-const WIDTH: u32 = 1024;
-const HEIGHT: u32 = 768;
 
 fn main() {
   let mut events_loop = EventsLoop::new();
-  let _window = WindowBuilder::new()
+  let window = WindowBuilder::new()
     .with_title("RustHero")
-    .with_dimensions(LogicalSize::new(f64::from(WIDTH), f64::from(HEIGHT)))
-    .build(&events_loop);
+    .with_resizable(false)
+    .build(&events_loop)
+    .unwrap();
 
-  let _inst = create_instance();
+  // Get the primary monitor, and make the window fullscreen there
+  let primary_monitor = window.get_primary_monitor();
+  window.set_fullscreen(Some(primary_monitor));
+
+  let inst = create_instance();
+  for device in PhysicalDevice::enumerate(&inst) {
+    println!("Device found: {:?}", device);
+  }
 
   let mut done = false;
 
@@ -55,6 +59,7 @@ fn handle_window_event (event: WindowEvent) -> ControlFlow {
 
 fn handle_keyboard_input(input: KeyboardInput) -> ControlFlow {
   if let Some(key) = input.virtual_keycode {
+    println!("Key pressed: {:?}", key);
     if key == VirtualKeyCode::Escape {
       ControlFlow::Break
     } else {
@@ -66,17 +71,15 @@ fn handle_keyboard_input(input: KeyboardInput) -> ControlFlow {
 }
 
 fn create_instance() -> Arc<Instance> {
-  let supported_extensions = InstanceExtensions::supported_by_core()
-    .expect("failed to retrieve supported extensions");
+  let required_extensions = vulkano_win::required_extensions();
 
   let app_info = ApplicationInfo {
     application_name: Some("RustHero".into()),
     application_version: Some(Version { major: 0, minor: 1, patch: 0 }),
-    engine_name: Some("no egine".into()),
+    engine_name: Some("no engine".into()),
     engine_version: Some(Version { major: 0, minor: 1, patch: 0 }),
   };
 
-  let required_extensions = vulkano_win::required_extensions();
   Instance::new(Some(&app_info), &required_extensions, None)
     .expect("failed to create Vulkan instance")
 }
