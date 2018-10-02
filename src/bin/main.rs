@@ -1,9 +1,14 @@
+#![feature(custom_attributes)]
+
 extern crate winit;
 extern crate vulkano_win;
 #[macro_use]
 extern crate vulkano;
 
+mod first_shader;
+
 use std::sync::Arc;
+use vulkano::sync::GpuFuture;
 use vulkano::instance::Instance;
 use vulkano::instance::InstanceExtensions;
 use vulkano::instance::PhysicalDevice;
@@ -14,6 +19,10 @@ use vulkano::instance::debug::MessageTypes;
 use vulkano::device::Device;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
+use vulkano::buffer::CpuAccessibleBuffer;
+use vulkano::buffer::BufferUsage;
+use vulkano::command_buffer::AutoCommandBufferBuilder;
+use vulkano::command_buffer::CommandBuffer;
 use winit::WindowEvent;
 use winit::WindowBuilder;
 use winit::Event;
@@ -41,12 +50,28 @@ fn main() {
 
   let phys_device = select_physical_device(&instance);
   let (device, queue) = create_device(phys_device);
-  // let buffer = CpuAccessibleBuffer::from_data(
-  //   device.clone(),
-  //   BufferUsage::all(),
-  //   data
-  // )
-  // .expect("failed to create buffer");
+
+  let data_iter = 0..65536;
+  let src_buf = CpuAccessibleBuffer::from_iter(
+    device.clone(),
+    BufferUsage::all(),
+    data_iter
+  )
+  .expect("failed to create buffer");
+
+  let command_buf = AutoCommandBufferBuilder::new(
+    device.clone(),
+    queue.family()
+  )
+  .unwrap();
+
+  // let finished = command_buf.execute(queue.clone()).unwrap();
+  // finished.then_signal_fence_and_flush().unwrap()
+  //     .wait(None).unwrap();
+  // let src_content = src_buf.read().unwrap();
+  // let dest_content = dest_buf.read().unwrap();
+  // assert_eq!(*src_content, *dest_content);
+  // println!("Copy succeeded!");
 
   let _surface = vulkano_win::create_vk_surface(window, instance);
 
