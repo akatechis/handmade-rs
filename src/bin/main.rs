@@ -7,9 +7,13 @@ use std::sync::Arc;
 use vulkano::instance::Instance;
 use vulkano::instance::InstanceExtensions;
 use vulkano::instance::PhysicalDevice;
+use vulkano::instance::Features;
 use vulkano::instance::debug::Message;
 use vulkano::instance::debug::DebugCallback;
 use vulkano::instance::debug::MessageTypes;
+use vulkano::device::Device;
+use vulkano::device::DeviceExtensions;
+use vulkano::device::Queue;
 use winit::WindowEvent;
 use winit::WindowBuilder;
 use winit::Event;
@@ -17,7 +21,6 @@ use winit::EventsLoop;
 use winit::KeyboardInput;
 use winit::VirtualKeyCode;
 use winit::ControlFlow;
-
 
 const LUNARG_VALIDATION_LAYER: &'static str =
   "VK_LAYER_LUNARG_standard_validation";
@@ -35,12 +38,15 @@ fn main() {
   window.set_fullscreen(Some(primary_monitor));
 
   let (instance, _debug_callback) = create_instance();
-  let device = select_physical_device(&instance);
 
-  println!("================");
-  println!("Selected device:\n");
-  print_device_info(&device);
-  println!("================");
+  let phys_device = select_physical_device(&instance);
+  let (device, queue) = create_device(phys_device);
+  // let buffer = CpuAccessibleBuffer::from_data(
+  //   device.clone(),
+  //   BufferUsage::all(),
+  //   data
+  // )
+  // .expect("failed to create buffer");
 
   let _surface = vulkano_win::create_vk_surface(window, instance);
 
@@ -136,7 +142,7 @@ fn collect_vulkan_layers<'a> () -> Vec<&'a str> {
   layers
 }
 
-fn print_device_info (d: &PhysicalDevice) {
+fn inspect_device_info (d: &PhysicalDevice) {
   println!("Device name: {:?}", d.name());
   println!("Device type: {:?}", d.ty());
   println!("API version: {:?}", d.api_version());
@@ -144,10 +150,42 @@ fn print_device_info (d: &PhysicalDevice) {
 
   let lim = d.limits();
   println!("Device memory: {}", lim.max_memory_allocation_count());
+
+  for family in d.queue_families() {
+    println!("Queue family: id {}", family.id());
+    println!("Queues: {}", family.queues_count());
+    println!("Compute? {}", if family.supports_compute() { "YES" } else { "NO" });
+    println!("Graphics? {}", if family.supports_graphics() { "YES" } else { "NO" });
+    println!("Transfer? {}", if family.supports_transfers() { "YES" } else { "NO" });
+    println!("Sparse Binding? {}", if family.supports_sparse_binding() { "YES" } else { "NO" });
+  }
 }
 
 fn select_physical_device (instance: &Arc<Instance>) -> PhysicalDevice {
-  PhysicalDevice::enumerate(&instance).next().unwrap()
+  let device = PhysicalDevice::enumerate(&instance).next()
+    .expect("No physical device to select");
+
+  println!("================");
+  println!("Selected device:\n");
+  inspect_device_info(&device);
+  println!("================");
+
+  device
+}
+
+fn create_device (phys_device: PhysicalDevice) -> (Arc<Device>, Arc<Queue>) {
+  let queue_family = phys_device.queue_families()
+    .find(|&q| q.supports_graphics())
+    .expect("couldn't find a graphical queue family");
+  let (device, mut queues) = Device::new(
+    phys_device,
+    &Features::none(),
+    &DeviceExtensions::none(),
+    [(queue_family, 0.5)].iter().cloned()
+  )
+  .expect("failed to create device");
+
+  (device, queues.next().unwrap())
 }
 
 fn create_vulkan_debug_callback (
