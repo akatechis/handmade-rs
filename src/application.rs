@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use vulkano::sync::GpuFuture;
 use vulkano::instance::Instance;
 use vulkano::instance::InstanceExtensions;
 use vulkano::instance::PhysicalDevice;
@@ -11,14 +12,18 @@ use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::buffer::BufferUsage;
+use vulkano::pipeline::ComputePipeline;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
-use winit::Window;
-use winit::WindowEvent;
-use winit::WindowBuilder;
+use vulkano::command_buffer::CommandBuffer;
+use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use winit::Event;
+use winit::Window;
 use winit::EventsLoop;
+use winit::WindowEvent;
 use winit::KeyboardInput;
+use winit::WindowBuilder;
 use winit::VirtualKeyCode;
+use super::shaders::compute;
 
 const LUNARG_VALIDATION_LAYER: &'static str =
   "VK_LAYER_LUNARG_standard_validation";
@@ -50,18 +55,44 @@ impl Application {
     let (device, queue) = create_device(phys_device);
 
     let data_iter = 0..65536;
-    let _data_buf = CpuAccessibleBuffer::from_iter(
+    let data_buf = CpuAccessibleBuffer::from_iter(
       device.clone(),
       BufferUsage::all(),
       data_iter
     )
     .expect("failed to create buffer");
 
-    let _command_buf = AutoCommandBufferBuilder::new(
+    let shader = compute::Shader::load(device.clone())
+      .expect("failed to create shader module");
+
+    let compute_pipeline = Arc::new(ComputePipeline::new(
+      device.clone(),
+      &shader.main_entry_point(),
+      &())
+    .expect("failed to create compute pipeline"));
+
+    let set = Arc::new(PersistentDescriptorSet::start(compute_pipeline.clone(), 0)
+      .add_buffer(data_buf.clone()).unwrap()
+      .build().unwrap()
+    );
+
+    let command_buf = AutoCommandBufferBuilder::new(
       device.clone(),
       queue.family()
     )
+    .unwrap()
+    .dispatch([1024, 1, 1], compute_pipeline.clone(), set.clone(), ())
+    .unwrap()
+    .build()
     .unwrap();
+
+    let finished = command_buf.execute(queue.clone()).unwrap();
+
+    finished.then_signal_fence_and_flush().unwrap()
+      .wait(None).unwrap();
+
+    let content: Vec<u32> = data_buf.read().unwrap().iter().map(|n|*n).collect();
+    println!("{:?}", content);
 
     Application {
       events_loop, window, device, queue, config
@@ -117,10 +148,10 @@ fn create_instance() -> (Arc<Instance>, Option<DebugCallback>) {
   let enabled_layers = collect_vulkan_layers();
 
   let app_info = app_info_from_cargo_toml!();
-  // println!("Application info: {:?}", app_info);
 
   #[cfg(not(release))]
   {
+    println!("Application info: {:?} \n", app_info);
     println!("================");
     println!("Creating Vulkan instance: \n");
     println!("Extensions: {:?}", enabled_extensions);
@@ -165,7 +196,6 @@ fn collect_vulkan_layers<'a> () -> Vec<&'a str> {
   layers
 }
 
-#[cfg(not(release))]
 fn inspect_device_info (d: &PhysicalDevice) {
   println!("Device name: {:?}", d.name());
   println!("Device type: {:?}", d.ty());
@@ -191,7 +221,7 @@ fn select_physical_device (instance: &Arc<Instance>) -> PhysicalDevice {
 
   #[cfg(not(release))]
   {
-    println!("================");
+    println!("\n\n================");
     println!("Selected device:\n");
     inspect_device_info(&device);
     println!("================");
@@ -200,7 +230,9 @@ fn select_physical_device (instance: &Arc<Instance>) -> PhysicalDevice {
   device
 }
 
-fn create_device (phys_device: PhysicalDevice) -> (Arc<Device>, Arc<Queue>) {
+fn create_device (
+  phys_device: PhysicalDevice
+) -> (Arc<Device>, Arc<Queue>) {
   let queue_family = phys_device.queue_families()
     .find(|&q| q.supports_graphics())
     .expect("couldn't find a graphical queue family");

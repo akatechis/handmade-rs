@@ -7,5 +7,5 @@ extern crate vulkano;
 extern crate winit;
 extern crate vulkano_win;
 
-pub mod shaders;
 pub mod application;
+pub mod shaders;
